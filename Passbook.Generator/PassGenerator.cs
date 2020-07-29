@@ -2,6 +2,7 @@ using Newtonsoft.Json;
 using Passbook.Generator.Exceptions;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.Design;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -17,15 +18,16 @@ namespace Passbook.Generator
     public class PassGenerator
     {
         private byte[] passFile = null;
-        private byte[] signatureFile = null;
-        private byte[] manifestFile = null;
+        protected byte[] signatureFile = null;
+        protected byte[] manifestFile = null;
         private Dictionary<string, byte[]> localizationFiles = null;
-        private byte[] pkPassFile = null;
+        protected byte[] pkPassFile = null;
         private X509Certificate2 appleCert = null;
         private X509Certificate2 passCert = null;
 
         private const string APPLE_CERTIFICATE_THUMBPRINT = "FF6797793A3CD798DC5B2ABEF56F73EDC9F83A64";
         private const string passTypePrefix = "Pass Type ID: ";
+        private const string NFCpassTypePrefix = "Pass Type ID with NFC: ";
 
         public byte[] Generate(PassGeneratorRequest request)
         {
@@ -103,7 +105,7 @@ namespace Passbook.Generator
             GenerateManifestFile(request);
         }
 
-        private void ValidateCertificates(PassGeneratorRequest request)
+        protected void ValidateCertificates(PassGeneratorRequest request)
         {
             passCert = GetCertificate(request);
 
@@ -120,10 +122,17 @@ namespace Passbook.Generator
             }
 
             string passTypeIdentifier = passCert.GetNameInfo(X509NameType.SimpleName, false);
-
-            if (passTypeIdentifier.StartsWith(passTypePrefix, StringComparison.OrdinalIgnoreCase))
+            bool NFCpassTypePrefixPresent = passTypeIdentifier.StartsWith(NFCpassTypePrefix, StringComparison.OrdinalIgnoreCase);
+            bool passTypePrefixPresent = passTypeIdentifier.StartsWith(passTypePrefix, StringComparison.OrdinalIgnoreCase);
+            if (passTypePrefixPresent || NFCpassTypePrefixPresent)
             {
-                passTypeIdentifier = passTypeIdentifier.Substring(passTypePrefix.Length);
+                if (NFCpassTypePrefixPresent)
+                {
+                    passTypeIdentifier = passTypeIdentifier.Substring(NFCpassTypePrefix.Length);
+                } else
+                {
+                    passTypeIdentifier = passTypeIdentifier.Substring(passTypePrefix.Length);
+                }
 
                 if (!string.IsNullOrEmpty(passTypeIdentifier) && !string.Equals(request.PassTypeIdentifier, passTypeIdentifier, StringComparison.Ordinal))
                 {
@@ -246,7 +255,7 @@ namespace Passbook.Generator
             }
         }
 
-        private void SignManifestFile(PassGeneratorRequest request)
+        protected void SignManifestFile(PassGeneratorRequest request)
         {
             Trace.TraceInformation("Signing the manifest file...");
 
